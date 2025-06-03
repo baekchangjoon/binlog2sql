@@ -44,10 +44,10 @@ class Binlog2sql(object):
 
         self.binlogList = []
         self.connection = pymysql.connect(**self.conn_setting)
-        with self.connection as cursor:
-            cursor.execute("SHOW MASTER STATUS")
+        with self.connection.cursor() as cursor:
+            cursor.execute("SHOW BINARY LOG STATUS")
             self.eof_file, self.eof_pos = cursor.fetchone()[:2]
-            cursor.execute("SHOW MASTER LOGS")
+            cursor.execute("SHOW BINARY LOGS")
             bin_index = [row[0] for row in cursor.fetchall()]
             if self.start_file not in bin_index:
                 raise ValueError('parameter error: start_file %s not in mysql server' % self.start_file)
@@ -70,7 +70,7 @@ class Binlog2sql(object):
         e_start_pos, last_pos = stream.log_pos, stream.log_pos
         # to simplify code, we do not use flock for tmp_file.
         tmp_file = create_unique_file('%s.%s' % (self.conn_setting['host'], self.conn_setting['port']))
-        with temp_open(tmp_file, "w") as f_tmp, self.connection as cursor:
+        with temp_open(tmp_file, "w") as f_tmp, self.connection.cursor() as cursor:
             for binlog_event in stream:
                 if not self.stop_never:
                     try:
