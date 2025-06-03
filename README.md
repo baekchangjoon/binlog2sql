@@ -1,5 +1,20 @@
 binlog2sql
-========================
+===========
+
+> **이 레포지토리는 [https://github.com/danfengcao/binlog2sql](https://github.com/danfengcao/binlog2sql) 를 포크(fork)한 저장소입니다.**
+
+## 추가된 수정 사항
+
+- 32aaa0e: UNKNOWN_COLx 로 출력되는 컬럼명을 실제 컬럼명으로 매핑합니다.
+- 94f2aa7: MySQL 8.4.5 에서 동작하도록 의존성 패키지를 업데이트하고, 그에따라 binlog2sql 을 업데이트합니다.
+
+## 실행 환경
+
+- Python 3.9.6
+- MySQL 8.4.5
+
+----
+
 
 从MySQL binlog解析出你要的SQL。根据不同选项，你可以得到原始SQL、回滚SQL、去除主键的INSERT SQL等。
 
