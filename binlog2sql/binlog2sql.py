@@ -44,6 +44,7 @@ class Binlog2sql(object):
 
         self.binlogList = []
         self.connection = pymysql.connect(**self.conn_setting)
+        self.table_columns = {}  # (schema, table) -> [col1, col2, ...]
         with self.connection.cursor() as cursor:
             cursor.execute("SHOW BINARY LOG STATUS")
             self.eof_file, self.eof_pos = cursor.fetchone()[:2]
@@ -60,6 +61,30 @@ class Binlog2sql(object):
             self.server_id = cursor.fetchone()[0]
             if not self.server_id:
                 raise ValueError('missing server_id in %s:%s' % (self.conn_setting['host'], self.conn_setting['port']))
+
+    def get_table_columns(self, cursor, schema, table):
+        cursor.execute("SHOW COLUMNS FROM `{}`.`{}`".format(schema, table))
+        return [row[0] for row in cursor.fetchall()]
+
+    def map_row_with_columns(self, cursor, schema, table, row):
+        key = (schema, table)
+        if key not in self.table_columns:
+            self.table_columns[key] = self.get_table_columns(cursor, schema, table)
+        columns = self.table_columns[key]
+
+        def needs_remap(d):
+            # dict인데 key가 UNKNOWN_COL0 등으로 되어 있으면 True
+            if not isinstance(d, dict):
+                return True
+            return all(str(k).startswith('UNKNOWN_COL') for k in d.keys())
+
+        if needs_remap(row['values']):
+            row['values'] = dict(zip(columns, list(row['values'].values()) if isinstance(row['values'], dict) else row['values']))
+        if 'before_values' in row and needs_remap(row['before_values']):
+            row['before_values'] = dict(zip(columns, list(row['before_values'].values()) if isinstance(row['before_values'], dict) else row['before_values']))
+        if 'after_values' in row and needs_remap(row['after_values']):
+            row['after_values'] = dict(zip(columns, list(row['after_values'].values()) if isinstance(row['after_values'], dict) else row['after_values']))
+        return row
 
     def process_binlog(self):
         stream = BinLogStreamReader(connection_settings=self.conn_setting, server_id=self.server_id,
@@ -103,6 +128,8 @@ class Binlog2sql(object):
                         print(sql)
                 elif is_dml_event(binlog_event) and event_type(binlog_event) in self.sql_type:
                     for row in binlog_event.rows:
+                        # 컬럼명 매핑
+                        row = self.map_row_with_columns(cursor, binlog_event.schema, binlog_event.table, row)
                         sql = concat_sql_from_binlog_event(cursor=cursor, binlog_event=binlog_event, no_pk=self.no_pk,
                                                            row=row, flashback=self.flashback, e_start_pos=e_start_pos)
                         if self.flashback:
